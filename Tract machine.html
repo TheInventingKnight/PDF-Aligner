@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TractAligner 3D | Liquid Glass Edition</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        glass: 'rgba(255, 255, 255, 0.1)',
+                        glassBorder: 'rgba(255, 255, 255, 0.2)',
+                        accent: '#6366f1',
+                    },
+                    animation: {
+                        'float': 'float 15s ease-in-out infinite',
+                        'float-delayed': 'float 18s ease-in-out infinite reverse',
+                        'pulse-glow': 'pulseGlow 4s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: 0.4 },
+                            '50%': { opacity: 0.8 },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent body scroll, handle inside main */
+        }
+
+        /* Deep Space Background */
+        .space-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, #1e1b4b 0%, #020617 100%);
+            z-index: -2;
+        }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration) ease-in-out infinite;
+            opacity: var(--opacity);
+        }
+
+        @keyframes twinkle {
+            0%, 100% { transform: scale(1); opacity: var(--opacity); }
+            50% { transform: scale(1.5); opacity: 1; box-shadow: 0 0 4px white; }
+        }
+
+        /* Nebula Clouds */
+        .nebula {
+            position: absolute;
+            width: 60vw;
+            height: 60vw;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            opacity: 0.4;
+            animation: float 25s infinite alternate;
+            pointer-events: none;
+        }
+        .neb-1 { top: -20%; left: -10%; background: #4f46e5; animation-delay: 0s; }
+        .neb-2 { bottom: -20%; right: -10%; background: #ec4899; animation-delay: -5s; }
+        .neb-3 { top: 40%; left: 30%; background: #06b6d4; width: 40vw; height: 40vw; animation-delay: -10s; }
+
+        /* Liquid Glass Card */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            border-radius: 16px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .glass-input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .glass-input:focus {
+            background: rgba(0, 0, 0, 0.5);
+            border-color: #6366f1;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+        }
+
+        .glass-btn {
+            background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.15);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-btn::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-100%);
+            transition: 0.5s;
+        }
+        .glass-btn:hover::after {
+            transform: translateX(100%);
+        }
+        .glass-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+        .glass-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* Loader */
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid #6366f1;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .quadrant-overlay {
+            position: absolute;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .quadrant-overlay:hover {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: #6366f1;
+        }
+        .quadrant-overlay.active {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: #818cf8;
+            border-width: 2px;
+            box-shadow: inset 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Responsive Improvements */
+        @media (max-width: 1024px) {
+            .mobile-stack {
+                flex-direction: column;
+            }
+            .mobile-full {
+                width: 100% !important;
+                height: 50vh !important;
+            }
+        }
+        
+        canvas#pdfCanvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col relative overflow-hidden">
+
+    <!-- Background Elements -->
+    <div class="space-bg"></div>
+    <div id="starfield"></div>
+    <div class="nebula neb-1"></div>
+    <div class="nebula neb-2"></div>
+    <div class="nebula neb-3"></div>
+
+    <!-- Header -->
+    <header class="glass-panel mx-4 mt-4 p-4 flex flex-col md:flex-row justify-between items-center gap-4 z-50 shrink-0">
+        <div class="flex items-center gap-4 w-full md:w-auto justify-center md:justify-start">
+            <div class="p-2 bg-indigo-500/20 rounded-lg border border-indigo-500/30 animate-pulse-glow">
+                <i class="ph ph-intersect-three text-2xl text-indigo-400"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-white to-indigo-200">TractAligner 3D</h1>
+                <p class="text-[11px] text-gray-400 uppercase tracking-widest">Liquid Glass Edition</p>
+            </div>
+        </div>
+        <div class="flex gap-4 items-center w-full md:w-auto justify-center md:justify-end">
+            <label class="glass-btn px-4 py-2 rounded-lg cursor-pointer flex items-center gap-2 text-sm font-medium text-white hover:text-indigo-200">
+                <i class="ph ph-upload-simple text-lg"></i> 
+                <span>Upload PDF</span>
+                <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+            </label>
+            <button id="exportBtn" class="glass-btn bg-indigo-600/30 border-indigo-500/50 px-6 py-2 rounded-lg text-sm font-bold text-white flex items-center gap-2" disabled>
+                <i class="ph ph-download-simple text-lg"></i> 
+                <span>Export PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex mobile-stack gap-4 p-4 min-h-0 relative z-10 overflow-hidden">
+        
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="absolute inset-0 bg-black/80 backdrop-blur-md z-[100] flex flex-col items-center justify-center hidden rounded-2xl transition-opacity duration-300">
+            <div class="loader w-16 h-16 mb-4 border-t-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.3)]"></div>
+            <p id="loadingText" class="text-white font-medium tracking-wide">Processing...</p>
+        </div>
+
+        <!-- Left: 2D Editor -->
+        <div class="w-1/2 mobile-full flex flex-col gap-4 min-h-0">
+            
+            <!-- Editor Toolbar -->
+            <div class="glass-panel p-4 flex flex-col gap-4 shrink-0">
+                <div class="flex justify-between items-center">
+                    <div class="flex bg-black/40 p-1 rounded-lg border border-white/5">
+                        <button id="viewFrontBtn" class="px-6 py-1.5 rounded-md text-sm font-medium transition-all duration-300">Front</button>
+                        <button id="viewBackBtn" class="px-6 py-1.5 rounded-md text-sm font-medium text-gray-400 transition-all duration-300">Back</button>
+                    </div>
+                    
+                    <button id="autoAlignAllBtn" class="glass-btn px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 text-cyan-300 border-cyan-500/30 hover:bg-cyan-500/20">
+                        <i class="ph ph-magic-wand text-lg"></i> 
+                        Auto-Align
+                    </button>
+                </div>
+
+                <!-- Active Quadrant Adjustments -->
+                <div class="grid grid-cols-2 gap-x-6 gap-y-3 bg-black/20 p-4 rounded-xl border border-white/5" id="controlsArea">
+                    <div class="col-span-2 flex justify-between items-end border-b border-white/10 pb-2 mb-1">
+                        <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Selected Quadrant</span>
+                        <span id="activeQuadLabel" class="text-sm font-bold text-indigo-400">None</span>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-[10px] text-gray-400 uppercase font-bold">X Offset</label>
+                            <span id="valX" class="text-[10px] font-mono text-cyan-300">0</span>
+                        </div>
+                        <input type="range" id="controlX" min="-100" max="100" value="0" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-[10px] text-gray-400 uppercase font-bold">Y Offset</label>
+                            <span id="valY" class="text-[10px] font-mono text-cyan-300">0</span>
+                        </div>
+                        <input type="range" id="controlY" min="-100" max="100" value="0" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="glass-panel flex-1 relative overflow-hidden flex items-center justify-center bg-gray-900/40 border-dashed border-2 border-white/5 p-4" id="canvasContainer">
+                <div id="placeholderText" class="text-center text-gray-500 flex flex-col items-center animate-float">
+                    <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-4 backdrop-blur-sm border border-white/5">
+                        <i class="ph ph-files text-4xl opacity-50 text-indigo-300"></i>
+                    </div>
+                    <p class="font-medium text-indigo-100">Upload a 2-page PDF</p>
+                    <p class="text-xs opacity-50 mt-1">Ready for Analysis</p>
+                </div>
+                
+                <!-- The 2D Wrapper -->
+                <div id="editorWrapper" class="relative shadow-2xl hidden transition-all duration-500 max-w-full max-h-full aspect-[1/1.294]" style="width: auto; height: 100%;">
+                    <canvas id="pdfCanvas" class="w-full h-full rounded-sm bg-white shadow-[0_0_50px_rgba(0,0,0,0.5)] block"></canvas>
+                    
+                    <!-- Quadrant Overlays generated by JS -->
+                    <div id="quadrantsLayer" class="absolute inset-0 z-10"></div>
+                    
+                    <!-- Crosshair guidelines -->
+                    <div class="absolute inset-0 pointer-events-none z-20 opacity-50">
+                        <div class="absolute top-0 bottom-0 left-1/2 w-px bg-cyan-500"></div>
+                        <div class="absolute left-0 right-0 top-1/2 h-px bg-cyan-500"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: 3D Preview -->
+        <div class="w-1/2 mobile-full glass-panel flex flex-col relative overflow-hidden group">
+            <div class="absolute top-4 left-4 z-10 pointer-events-none">
+                <h2 class="text-sm font-bold text-indigo-300 flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+                    <i class="ph ph-cube text-lg"></i> 3D Preview
+                </h2>
+            </div>
+
+            <!-- 3D Controls overlay -->
+            <div class="absolute bottom-4 left-4 right-4 z-10 p-4 glass-panel flex flex-col gap-3 translate-y-2 opacity-90 transition-all hover:translate-y-0 hover:opacity-100">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <div class="text-xs text-gray-300 font-bold uppercase tracking-wider mb-2">Fold Direction</div>
+                        <div class="flex bg-gray-700/50 rounded-lg p-1 border border-gray-600">
+                            <button id="foldVerticalBtn" class="flex-1 py-1 rounded text-[10px] font-bold bg-indigo-500 text-white shadow-sm transition-all">Vertical</button>
+                            <button id="foldHorizontalBtn" class="flex-1 py-1 rounded text-[10px] font-bold text-gray-400 hover:text-white transition-all">Horizontal</button>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                         <div class="flex justify-between items-center text-xs text-gray-300 font-bold uppercase tracking-wider mb-1">
+                            <span>Fold Angle</span>
+                            <span id="foldVal" class="text-cyan-300">0°</span>
+                        </div>
+                        <input type="range" id="foldSlider" min="0" max="135" step="1" value="0" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-400">
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400 text-center mt-1">
+                    <i class="ph ph-mouse-left"></i> Rotate • <i class="ph ph-mouse-wheel"></i> Zoom • <i class="ph ph-arrows-out-line"></i> Pan
+                </p>
+            </div>
+
+            <div id="threeContainer" class="w-full h-full cursor-move outline-none active:cursor-grabbing"></div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center p-2 text-[10px] text-gray-500 z-10 shrink-0">
+        TractAligner Engine v2.6 • 100% Client-Side Processing • Secure & Private
+    </footer>
+
+    <script>
+        // --- Starfield Generation ---
+        function createStars() {
+            const container = document.getElementById('starfield');
+            const starCount = 150;
+            for(let i=0; i<starCount; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const size = Math.random() * 2 + 0.5;
+                const duration = Math.random() * 3 + 2;
+                const opacity = Math.random() * 0.5 + 0.1;
+                
+                star.style.left = `${x}%`;
+                star.style.top = `${y}%`;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.setProperty('--duration', `${duration}s`);
+                star.style.setProperty('--opacity', opacity);
+                container.appendChild(star);
+            }
+        }
+        createStars();
+
+        // --- State Management ---
+        const state = {
+            pdfDoc: null,
+            pdfBytes: null,
+            page1Params: { width: 0, height: 0 },
+            page2Params: { width: 0, height: 0 },
+            
+            // Offsets: pageIndex -> quadrantIndex (0-3) -> {x, y}
+            offsets: {
+                0: [ {x:0,y:0}, {x:0,y:0}, {x:0,y:0}, {x:0,y:0} ],
+                1: [ {x:0,y:0}, {x:0,y:0}, {x:0,y:0}, {x:0,y:0} ]
+            },
+            
+            currentPageView: 0, // 0 or 1
+            selectedQuadrant: 0, // 0 to 3
+            pageCanvases: [null, null], 
+            isProcessing: false,
+            foldAngle: 0,
+            foldAxis: 'vertical' // 'vertical' or 'horizontal'
+        };
+
+        // --- DOM Elements ---
+        const UI = {
+            fileInput: document.getElementById('fileInput'),
+            exportBtn: document.getElementById('exportBtn'),
+            pdfCanvas: document.getElementById('pdfCanvas'),
+            editorWrapper: document.getElementById('editorWrapper'),
+            quadrantsLayer: document.getElementById('quadrantsLayer'),
+            controls: {
+                x: document.getElementById('controlX'),
+                y: document.getElementById('controlY'),
+                valX: document.getElementById('valX'),
+                valY: document.getElementById('valY'),
+                activeLabel: document.getElementById('activeQuadLabel'),
+                viewFront: document.getElementById('viewFrontBtn'),
+                viewBack: document.getElementById('viewBackBtn'),
+                autoAlign: document.getElementById('autoAlignAllBtn'),
+                btnVertical: document.getElementById('foldVerticalBtn'),
+                btnHorizontal: document.getElementById('foldHorizontalBtn')
+            },
+            threeContainer: document.getElementById('threeContainer'),
+            foldSlider: document.getElementById('foldSlider'),
+            loader: document.getElementById('loadingOverlay'),
+            loadingText: document.getElementById('loadingText'),
+            placeholder: document.getElementById('placeholderText')
+        };
+
+        // --- Three.js Setup ---
+        let scene, camera, renderer, controls;
+        let spinePivot, panel1, panel2; 
+        
+        // Materials array references
+        let panel1Mats, panel2Mats;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            
+            const aspect = UI.threeContainer.clientWidth / UI.threeContainer.clientHeight;
+            camera = new THREE.PerspectiveCamera(35, aspect, 0.1, 1000); 
+            camera.position.z = 22;
+            camera.position.y = 0;
+
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+            renderer.setSize(UI.threeContainer.clientWidth, UI.threeContainer.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            // Removed sortObjects to prevent transparency issues, 
+            // since we are using opaque materials now.
+            UI.threeContainer.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 5;
+            controls.maxDistance = 40;
+            controls.rotateSpeed = 0.6;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            mainLight.position.set(5, 10, 10);
+            scene.add(mainLight);
+
+            const backLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            backLight.position.set(-5, 5, -10);
+            scene.add(backLight);
+
+            spinePivot = new THREE.Group();
+            scene.add(spinePivot);
+
+            // Initialize default geometry
+            update3DGeometry();
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        function update3DGeometry() {
+            // Clear existing
+            if(panel1) spinePivot.remove(panel1);
+            if(panel2) spinePivot.remove(panel2);
+
+            const thickness = 0.02; 
+            const panelW = 4.25;
+            const panelH = 11;
+            
+            // Base Materials - 0:Right, 1:Left, 2:Top, 3:Bottom, 4:Front, 5:Back
+            const createMats = () => {
+                const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
+                const edge = new THREE.MeshStandardMaterial({ color: 0xdddddd });
+                // Front and Back are placeholders for textures
+                const front = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const back = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                return [edge, edge, edge, edge, front, back];
+            };
+
+            panel1Mats = createMats();
+            panel2Mats = createMats();
+
+            if (state.foldAxis === 'vertical') {
+                // Vertical Split (Left Panel / Right Panel)
+                // Panel 1 = Left, Panel 2 = Right
+                
+                const geoLeft = new THREE.BoxGeometry(panelW, panelH, thickness);
+                geoLeft.translate(-panelW/2, 0, 0); // Pivot at right edge (0)
+
+                const geoRight = new THREE.BoxGeometry(panelW, panelH, thickness);
+                geoRight.translate(panelW/2, 0, 0); // Pivot at left edge (0)
+
+                panel1 = new THREE.Mesh(geoLeft, panel1Mats);
+                panel2 = new THREE.Mesh(geoRight, panel2Mats);
+
+            } else {
+                // Horizontal Split (Top Panel / Bottom Panel)
+                // Panel 1 = Top, Panel 2 = Bottom
+                // Rotate PDF 90? No, just cut it horizontally.
+                // Standard Paper: 8.5 x 11.
+                // Top half is 8.5 x 5.5.
+                // Dimensions: W=8.5, H=5.5
+                
+                const w = 8.5; 
+                const h = 5.5;
+
+                const geoTop = new THREE.BoxGeometry(w, h, thickness);
+                geoTop.translate(0, h/2, 0); // Pivot at bottom edge (0)
+
+                const geoBottom = new THREE.BoxGeometry(w, h, thickness);
+                geoBottom.translate(0, -h/2, 0); // Pivot at top edge (0)
+
+                panel1 = new THREE.Mesh(geoTop, panel1Mats);
+                panel2 = new THREE.Mesh(geoBottom, panel2Mats);
+            }
+
+            spinePivot.add(panel1);
+            spinePivot.add(panel2);
+            
+            // Refresh textures if loaded
+            if (state.pdfDoc) update3DTextures();
+        }
+
+        function onWindowResize() {
+            if(!camera || !renderer) return;
+            const width = UI.threeContainer.clientWidth;
+            const height = UI.threeContainer.clientHeight;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- PDF Processing ---
+
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            UI.loadingText.innerText = "Parsing PDF Structure...";
+            showLoader(true);
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                state.pdfBytes = arrayBuffer.slice(0);
+                state.pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+
+                if (state.pdfDoc.numPages < 2) {
+                    alert("PDF must have at least 2 pages.");
+                    showLoader(false);
+                    return;
+                }
+
+                UI.loadingText.innerText = "Rasterizing Pages...";
+                state.pageCanvases[0] = await renderPageToCanvas(1);
+                state.pageCanvases[1] = await renderPageToCanvas(2);
+
+                UI.placeholder.classList.add('hidden');
+                UI.editorWrapper.classList.remove('hidden');
+                UI.exportBtn.disabled = false;
+                
+                // Reset offsets
+                state.offsets = {
+                    0: [ {x:0,y:0}, {x:0,y:0}, {x:0,y:0}, {x:0,y:0} ],
+                    1: [ {x:0,y:0}, {x:0,y:0}, {x:0,y:0}, {x:0,y:0} ]
+                };
+
+                generateQuadrantOverlays();
+                UI.controls.viewFront.click();
+                update3DTextures();
+
+            } catch (err) {
+                console.error(err);
+                alert("Error parsing PDF. See console.");
+            }
+            showLoader(false);
+        }
+
+        async function renderPageToCanvas(pageIdx) {
+            const page = await state.pdfDoc.getPage(pageIdx);
+            const viewport = page.getViewport({ scale: 2.0 });
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            if (pageIdx === 1) {
+                state.page1Params = { width: viewport.width, height: viewport.height };
+            } else {
+                state.page2Params = { width: viewport.width, height: viewport.height };
+            }
+
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            return canvas;
+        }
+
+        // --- Editor & Visualization ---
+
+        function generateQuadrantOverlays() {
+            UI.quadrantsLayer.innerHTML = '';
+            const labels = ['Top Left', 'Top Right', 'Bottom Left', 'Bottom Right'];
+            
+            for(let i=0; i<4; i++) {
+                const div = document.createElement('div');
+                div.className = `quadrant-overlay w-1/2 h-1/2 flex items-center justify-center text-transparent hover:text-white/70 font-bold text-xs uppercase tracking-wider`;
+                if(i === 0) { div.style.top = '0'; div.style.left = '0'; }
+                if(i === 1) { div.style.top = '0'; div.style.left = '50%'; }
+                if(i === 2) { div.style.top = '50%'; div.style.left = '0'; }
+                if(i === 3) { div.style.top = '50%'; div.style.left = '50%'; }
+                div.innerHTML = `<span>${labels[i]}</span>`;
+                div.onclick = () => selectQuadrant(i);
+                UI.quadrantsLayer.appendChild(div);
+            }
+        }
+
+        function selectQuadrant(index) {
+            state.selectedQuadrant = index;
+            Array.from(UI.quadrantsLayer.children).forEach((el, idx) => {
+                if(idx === index) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+
+            const names = ['Top-Left', 'Top-Right', 'Bottom-Left', 'Bottom-Right'];
+            UI.controls.activeLabel.innerText = names[index];
+            
+            const currentOffsets = state.offsets[state.currentPageView][index];
+            UI.controls.x.value = currentOffsets.x;
+            UI.controls.y.value = currentOffsets.y;
+            UI.controls.valX.innerText = currentOffsets.x;
+            UI.controls.valY.innerText = currentOffsets.y;
+        }
+
+        function updateView() {
+            const canvas = UI.pdfCanvas;
+            const ctx = canvas.getContext('2d');
+            const srcCanvas = state.pageCanvases[state.currentPageView];
+            if (!srcCanvas) return;
+
+            const params = state.currentPageView === 0 ? state.page1Params : state.page2Params;
+            canvas.width = params.width;
+            canvas.height = params.height;
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Guidelines
+            ctx.strokeStyle = "#e5e7eb";
+            ctx.setLineDash([15, 15]);
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width/2, 0);
+            ctx.lineTo(canvas.width/2, canvas.height);
+            ctx.moveTo(0, canvas.height/2);
+            ctx.lineTo(canvas.width, canvas.height/2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Quadrants
+            const qw = canvas.width / 2;
+            const qh = canvas.height / 2;
+            const offsets = state.offsets[state.currentPageView];
+
+            const drawQuad = (idx, sx, sy, dx, dy) => {
+                const off = offsets[idx];
+                ctx.drawImage(srcCanvas, sx, sy, qw, qh, dx + off.x, dy - off.y, qw, qh);
+            };
+
+            drawQuad(0, 0, 0, 0, 0); 
+            drawQuad(1, qw, 0, qw, 0);
+            drawQuad(2, 0, qh, 0, qh);
+            drawQuad(3, qw, qh, qw, qh);
+
+            update3DTextures();
+        }
+
+        // --- Auto Alignment ---
+        
+        async function autoAlignAll() {
+            UI.loadingText.innerText = "Calculating Ink Density...";
+            showLoader(true);
+            await new Promise(r => setTimeout(r, 100));
+
+            try {
+                for (let pIndex = 0; pIndex < 2; pIndex++) {
+                    const srcCanvas = state.pageCanvases[pIndex];
+                    if(!srcCanvas) continue;
+
+                    const w = srcCanvas.width;
+                    const h = srcCanvas.height;
+                    const qw = w / 2;
+                    const qh = h / 2;
+
+                    const tempC = document.createElement('canvas');
+                    tempC.width = qw;
+                    tempC.height = qh;
+                    const ctx = tempC.getContext('2d');
+
+                    const quadOrigins = [{x:0, y:0}, {x:qw, y:0}, {x:0, y:qh}, {x:qw, y:qh}];
+
+                    for(let q=0; q<4; q++) {
+                        ctx.clearRect(0, 0, qw, qh);
+                        ctx.drawImage(srcCanvas, quadOrigins[q].x, quadOrigins[q].y, qw, qh, 0, 0, qw, qh);
+                        
+                        const imgData = ctx.getImageData(0, 0, qw, qh);
+                        const data = imgData.data;
+                        
+                        let minX = qw, maxX = 0, minY = qh, maxY = 0;
+                        let hasContent = false;
+
+                        for(let y=0; y<qh; y+=4) { 
+                            for(let x=0; x<qw; x+=4) {
+                                const idx = (y * qw + x) * 4;
+                                if(data[idx] < 240 || data[idx+1] < 240 || data[idx+2] < 240) {
+                                    if(x < minX) minX = x;
+                                    if(x > maxX) maxX = x;
+                                    if(y < minY) minY = y;
+                                    if(y > maxY) maxY = y;
+                                    hasContent = true;
+                                }
+                            }
+                        }
+
+                        if(hasContent) {
+                            const contentW = maxX - minX;
+                            const contentH = maxY - minY;
+                            const contentCX = minX + (contentW / 2);
+                            const contentCY = minY + (contentH / 2);
+                            const shiftX = (qw/2) - contentCX;
+                            const shiftY = (qh/2) - contentCY; 
+                            
+                            state.offsets[pIndex][q].x = Math.round(shiftX);
+                            state.offsets[pIndex][q].y = Math.round(-shiftY);
+                        }
+                    }
+                }
+                selectQuadrant(state.selectedQuadrant);
+                updateView();
+            } catch(e) {
+                console.error(e);
+                alert("Auto-align failed.");
+            }
+            showLoader(false);
+        }
+
+        // --- 3D Texture & Logic (Fold Axis Aware) ---
+
+        function update3DTextures() {
+            if(!panel1 || !panel2) return;
+
+            const createFullPageTexture = (pageIndex) => {
+                const srcCanvas = state.pageCanvases[pageIndex];
+                if(!srcCanvas) return null;
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                const texW = 1024;
+                const texH = 1024 * (state.page1Params.height / state.page1Params.width);
+                canvas.width = texW;
+                canvas.height = texH;
+                
+                ctx.fillStyle = "white";
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+
+                const qw = canvas.width / 2;
+                const qh = canvas.height / 2;
+                const offsets = state.offsets[pageIndex];
+
+                const drawOnTex = (idx, sx, sy, dx, dy) => {
+                    const off = offsets[idx];
+                    const scaleX = texW / state.page1Params.width;
+                    const scaleY = texH / state.page1Params.height;
+                    ctx.drawImage(srcCanvas, sx, sy, srcCanvas.width/2, srcCanvas.height/2, 
+                                  dx + (off.x * scaleX), dy - (off.y * scaleY), qw, qh);
+                };
+
+                drawOnTex(0, 0, 0, 0, 0);
+                drawOnTex(1, srcCanvas.width/2, 0, qw, 0);
+                drawOnTex(2, 0, srcCanvas.height/2, 0, qh);
+                drawOnTex(3, srcCanvas.width/2, srcCanvas.height/2, qw, qh);
+
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                return tex;
+            };
+
+            const frontTex = state.pageCanvases[0] ? createFullPageTexture(0) : null;
+            const backTex = state.pageCanvases[1] ? createFullPageTexture(1) : null;
+
+            if (state.foldAxis === 'vertical') {
+                // VERTICAL MODE: Split Left/Right
+                // Panel 1 = Left, Panel 2 = Right
+                
+                if (frontTex) {
+                    const t1 = frontTex.clone();
+                    t1.repeat.set(0.5, 1);
+                    t1.offset.set(0, 0); // Left half
+                    t1.needsUpdate = true;
+                    panel1Mats[4].map = t1;
+
+                    const t2 = frontTex.clone();
+                    t2.repeat.set(0.5, 1);
+                    t2.offset.set(0.5, 0); // Right half
+                    t2.needsUpdate = true;
+                    panel2Mats[4].map = t2;
+                }
+
+                if (backTex) {
+                    // Back logic: Panel 1 back face (Face 5) needs the Right side of the back page (because flipped)
+                    // Panel 2 back face needs Left side.
+                    // Actually, standard UV mapping on a box Back face (Face 5) usually mirrors.
+                    // Let's assume standard behavior first. 
+                    
+                    const bt1 = backTex.clone();
+                    bt1.repeat.set(0.5, 1);
+                    bt1.offset.set(0.5, 0); // Right Half of back page goes on Left Panel Back
+                    bt1.needsUpdate = true;
+                    panel1Mats[5].map = bt1;
+
+                    const bt2 = backTex.clone();
+                    bt2.repeat.set(0.5, 1);
+                    bt2.offset.set(0, 0); // Left Half of back page goes on Right Panel Back
+                    bt2.needsUpdate = true;
+                    panel2Mats[5].map = bt2;
+                }
+            } else {
+                // HORIZONTAL MODE: Split Top/Bottom
+                // Panel 1 = Top, Panel 2 = Bottom
+                // In UV Space: (0,0) is Bottom-Left, (1,1) is Top-Right
+                // Top Half: V [0.5, 1.0]. Bottom Half: V [0.0, 0.5]
+
+                if (frontTex) {
+                    const t1 = frontTex.clone();
+                    t1.repeat.set(1, 0.5);
+                    t1.offset.set(0, 0.5); // Top half
+                    t1.needsUpdate = true;
+                    panel1Mats[4].map = t1;
+
+                    const t2 = frontTex.clone();
+                    t2.repeat.set(1, 0.5);
+                    t2.offset.set(0, 0); // Bottom half
+                    t2.needsUpdate = true;
+                    panel2Mats[4].map = t2;
+                }
+
+                if (backTex) {
+                    // For Top Panel Back: It corresponds to Top Half of back page.
+                    // For Bottom Panel Back: It corresponds to Bottom Half.
+                    
+                    const bt1 = backTex.clone();
+                    bt1.repeat.set(1, 0.5);
+                    bt1.offset.set(0, 0.5);
+                    bt1.needsUpdate = true;
+                    panel1Mats[5].map = bt1;
+
+                    const bt2 = backTex.clone();
+                    bt2.repeat.set(1, 0.5);
+                    bt2.offset.set(0, 0);
+                    bt2.needsUpdate = true;
+                    panel2Mats[5].map = bt2;
+                }
+            }
+            
+            panel1Mats.forEach(m => m.needsUpdate = true);
+            panel2Mats.forEach(m => m.needsUpdate = true);
+        }
+
+        // --- PDF Export Logic ---
+
+        async function generateFinalPDF() {
+            UI.loadingText.innerText = "Compiling High-Res PDF...";
+            showLoader(true);
+            await new Promise(r => setTimeout(r, 50));
+            
+            try {
+                const { PDFDocument } = PDFLib;
+                const newPdf = await PDFDocument.create();
+                const sourcePdf = await PDFDocument.load(state.pdfBytes);
+                
+                const embeddedPage1 = await newPdf.embedPage(sourcePdf.getPages()[0]);
+                const embeddedPage2 = await newPdf.embedPage(sourcePdf.getPages()[1]);
+
+                const width = embeddedPage1.width;
+                const height = embeddedPage1.height;
+                const qw = width / 2;
+                const qh = height / 2;
+
+                const canvasW = state.page1Params.width;
+                const canvasH = state.page1Params.height;
+                const ratioX = width / canvasW;
+                const ratioY = height / canvasH;
+
+                const buildPage = (embed, offsets) => {
+                    const page = newPdf.addPage([width, height]);
+                    
+                    const drawQuadrant = (qIdx, baseX, baseY) => {
+                        const off = offsets[qIdx];
+                        
+                        const pdfOffX = off.x * ratioX;
+                        const pdfOffY = off.y * ratioY;
+
+                        page.pushOperators(PDFLib.pushGraphicsState());
+                        
+                        page.pushOperators(
+                            PDFLib.moveTo(baseX, baseY),
+                            PDFLib.lineTo(baseX + qw, baseY),
+                            PDFLib.lineTo(baseX + qw, baseY + qh),
+                            PDFLib.lineTo(baseX, baseY + qh),
+                            PDFLib.closePath(),
+                            PDFLib.clip(),
+                            PDFLib.endPath()
+                        );
+
+                        page.drawPage(embed, {
+                            x: pdfOffX, 
+                            y: pdfOffY, 
+                            width: width,
+                            height: height
+                        });
+
+                        page.pushOperators(PDFLib.popGraphicsState());
+                    };
+
+                    drawQuadrant(0, 0, qh);  // TL
+                    drawQuadrant(1, qw, qh); // TR
+                    drawQuadrant(2, 0, 0);   // BL
+                    drawQuadrant(3, qw, 0);  // BR
+                };
+
+                buildPage(embeddedPage1, state.offsets[0]);
+                buildPage(embeddedPage2, state.offsets[1]);
+
+                const pdfBytes = await newPdf.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'aligned_tracts.pdf';
+                link.click();
+
+            } catch(e) {
+                console.error(e);
+                alert("Export failed: " + e.message);
+            }
+            showLoader(false);
+        }
+
+        // --- Event Listeners ---
+
+        UI.fileInput.addEventListener('change', handleFileUpload);
+        
+        const setPage = (idx) => {
+            state.currentPageView = idx;
+            if(idx === 0) {
+                UI.controls.viewFront.classList.add('bg-indigo-500', 'text-white', 'shadow-lg');
+                UI.controls.viewFront.classList.remove('text-gray-400');
+                UI.controls.viewBack.classList.remove('bg-indigo-500', 'text-white', 'shadow-lg');
+                UI.controls.viewBack.classList.add('text-gray-400');
+            } else {
+                UI.controls.viewBack.classList.add('bg-indigo-500', 'text-white', 'shadow-lg');
+                UI.controls.viewBack.classList.remove('text-gray-400');
+                UI.controls.viewFront.classList.remove('bg-indigo-500', 'text-white', 'shadow-lg');
+                UI.controls.viewFront.classList.add('text-gray-400');
+            }
+            selectQuadrant(0);
+            updateView();
+        };
+
+        UI.controls.viewFront.addEventListener('click', () => setPage(0));
+        UI.controls.viewBack.addEventListener('click', () => setPage(1));
+
+        const updateOffset = () => {
+            const x = parseInt(UI.controls.x.value);
+            const y = parseInt(UI.controls.y.value);
+            UI.controls.valX.innerText = x > 0 ? `+${x}` : x;
+            UI.controls.valY.innerText = y > 0 ? `+${y}` : y;
+            state.offsets[state.currentPageView][state.selectedQuadrant] = { x, y };
+            updateView();
+        };
+
+        UI.controls.x.addEventListener('input', updateOffset);
+        UI.controls.y.addEventListener('input', updateOffset);
+        UI.controls.autoAlign.addEventListener('click', autoAlignAll);
+        UI.exportBtn.addEventListener('click', generateFinalPDF);
+
+        // Fold Mode Buttons
+        const setFoldMode = (mode) => {
+            state.foldAxis = mode;
+            state.foldAngle = 0;
+            UI.foldSlider.value = 0;
+            document.getElementById('foldVal').innerText = "0°";
+            
+            // UI Styling
+            if(mode === 'vertical') {
+                UI.controls.btnVertical.className = "flex-1 py-1 rounded text-[10px] font-bold bg-indigo-500 text-white shadow-sm transition-all";
+                UI.controls.btnHorizontal.className = "flex-1 py-1 rounded text-[10px] font-bold text-gray-400 hover:text-white transition-all";
+            } else {
+                UI.controls.btnHorizontal.className = "flex-1 py-1 rounded text-[10px] font-bold bg-indigo-500 text-white shadow-sm transition-all";
+                UI.controls.btnVertical.className = "flex-1 py-1 rounded text-[10px] font-bold text-gray-400 hover:text-white transition-all";
+            }
+
+            // Rebuild Geometry
+            update3DGeometry();
+        };
+
+        UI.controls.btnVertical.addEventListener('click', () => setFoldMode('vertical'));
+        UI.controls.btnHorizontal.addEventListener('click', () => setFoldMode('horizontal'));
+
+        // Fold Slider Logic
+        UI.foldSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            document.getElementById('foldVal').innerText = val + "°";
+            state.foldAngle = val;
+            
+            const rad = THREE.MathUtils.degToRad(val);
+            
+            if(panel1 && panel2) {
+                if(state.foldAxis === 'vertical') {
+                    // Fold like a book (Y axis)
+                    // Panel 1 (Left) rotates +Y? No, if we look from front, "V" fold is towards us.
+                    // Left panel rotates +Y (right edge comes forward?) No right edge is pivot.
+                    // Left edge comes forward.
+                    // Let's do simple V-fold towards viewer.
+                    panel1.rotation.y = rad * 0.5;
+                    panel2.rotation.y = -rad * 0.5;
+                } else {
+                    // Fold like a laptop (X axis)
+                    // Panel 1 (Top) rotates +X (Top edge comes forward)
+                    // Panel 2 (Bottom) rotates -X (Bottom edge comes forward)
+                    panel1.rotation.x = rad * 0.5;
+                    panel2.rotation.x = -rad * 0.5;
+                }
+            }
+        });
+
+        // Initialize
+        initThree();
+        showLoader(false);
+
+        function showLoader(show) {
+            UI.loader.style.display = show ? 'flex' : 'none';
+        }
+
+    </script>
+</body>
+</html>
